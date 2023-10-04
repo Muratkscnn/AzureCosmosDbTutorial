@@ -42,39 +42,54 @@ namespace WebApplication4.Controllers
             return Request.CreateResponse(HttpStatusCode.OK);
         }
         [HttpGet]
+        [Route("GetAllByPartitionKey")]
+        public async Task<HttpResponseMessage> GetAllByPartitionKey(string partitionKey)
+        {
+            var result =await _stockDataRepository.GetAllAsync(partitionKey);
+            return Request.CreateResponse(HttpStatusCode.OK,result);
+        }
+        [HttpGet]
         [Route("saveData")]
         public async Task<HttpResponseMessage> SaveData()
         {
             using (HttpClient client = new HttpClient())
             {
-                using (var response = await client.GetAsync("https://localhost:44319/AssetSelect/GetLocalIndexAssets/XU030"))
+                using (var response = await client.GetAsync("https://localhost:44319/AssetSelect/GetLocalIndexAssets/XU100"))
                 {
                     string apiResponse = await response.Content.ReadAsStringAsync();
                     var data = JsonConvert.DeserializeObject<List<AssetSelectResult>>(apiResponse);
-                    foreach (var item in data)
+                    foreach (var item in data.Skip(50))
                     {
                         using (var stockDataResponse = await client.GetAsync("https://localhost:44319/AssetSelect/GetStockData/"+ item.Code))
                         {
                             string stockDataApiResponse = await stockDataResponse.Content.ReadAsStringAsync();
                             var stockDataList = JsonConvert.DeserializeObject<List<ClosePriceModel>>(stockDataApiResponse);
+                            List<Task> tasks = new List<Task>();
                             foreach (var stockDataItem in stockDataList)
                             {
-                                StockData stockData = new StockData()
-                                {
-                                    Id = Guid.NewGuid().ToString(),
-                                    AdjClose = Convert.ToDouble(stockDataItem.AdjClose),
-                                    Date = stockDataItem.Date,
-                                    Code = stockDataItem.Symbol
-                                };
-                                await _stockDataRepository.CreateAsync(stockData);
+                                tasks.Add(CreateAsync(stockDataItem));
                             }
+                            await Task.WhenAll(tasks);
                         }
                     }
                 }
                 return Request.CreateResponse(HttpStatusCode.OK);
             }
         }
+        private async Task CreateAsync(ClosePriceModel stock)
+        {
+            StockData stockData = new StockData()
+            {
+                Id = Guid.NewGuid().ToString(),
+                AdjClose = Convert.ToDouble(stock.AdjClose),
+                Date = stock.Date,
+                Code = stock.Symbol
+            };
+            _stockDataRepository.CreateAsync(stockData);
+        }
     }
+
+
     public class AssetSelectResult
     {
         public string Code { get; set; }

@@ -37,16 +37,17 @@ namespace WebApplication4.DAL.Concrete
             return JsonConvert.DeserializeObject<T>(response.Resource.ToString());
         }
 
-        public async Task<List<T>> GetAllAsync()
+        public async Task<List<T>> GetAllAsync(string partitionKey)
         {
+            //GetAllbyPartitionKey
             var query = _client.CreateDocumentQuery<T>(
                     UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
                     new FeedOptions
                     {
+                        PartitionKey = new PartitionKey(partitionKey),
                         EnableCrossPartitionQuery = true
                     }) // Tüm partition'ları tarayarak sorgu yapılmasına izin verir
                 .AsDocumentQuery();
-
             var items = new List<T>();
 
             while (query.HasMoreResults)
@@ -129,7 +130,7 @@ namespace WebApplication4.DAL.Concrete
         {
             var response =
                 await _client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(_databaseId, _collectionId),
-                    item);
+                    item, new RequestOptions { PartitionKey = new PartitionKey(item.GetType().GetProperty("Code")?.GetValue(item).ToString()) });
             return JsonConvert.DeserializeObject<T>(response.Resource.ToString());
         }
 
